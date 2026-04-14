@@ -30,9 +30,10 @@ import { ValidationTab } from "./components/tabs/ValidationTab";
 import { WhyTab } from "./components/tabs/WhyTab";
 import { ReviewTab } from "./components/tabs/ReviewTab";
 import { MeetingChat, createMeetingSessionState } from "./components/MeetingChat";
+import { ExecuteTab } from "./components/tabs/ExecuteTab";
 
 type ExplorerView = "threads" | "templates" | "saved";
-type InspectorView = "plan" | "validation" | "why" | "builder" | "review";
+type InspectorView = "plan" | "validation" | "why" | "builder" | "review" | "execute";
 
 interface WorkspaceDocument {
   source: "generated" | "history" | "saved" | "template";
@@ -210,7 +211,7 @@ function EmptyWorkspace() {
 }
 
 export default function App() {
-  const { generate, loading, error } = useGenerate();
+  const { generate, loading, streaming, streamingTokens, error } = useGenerate();
   const { threads, refresh: refreshHistory } = useHistory();
   const { savedQueries, refresh: refreshLibrary } = useLibrary();
 
@@ -247,11 +248,12 @@ export default function App() {
   }, []);
 
   const handleSubmit = useCallback(
-    async (prompt: string, dialect: Dialect) => {
+    async (prompt: string, dialect: Dialect, schemaContext?: string) => {
       const result = await generate({
         prompt,
         dialect,
         thread_id: activeThreadId ?? undefined,
+        schema_context: schemaContext,
       });
 
       if (!result) return;
@@ -484,13 +486,22 @@ export default function App() {
             {!workspace && !loading && <EmptyWorkspace />}
             {loading && !workspace && (
               <div className="p-6">
-                <div className="workspace-card animate-pulse">
-                  <div className="mb-3 h-4 w-1/3 rounded bg-[#2d2d30]" />
-                  <div className="space-y-2">
-                    <div className="h-3 rounded bg-[#2d2d30]" />
-                    <div className="h-3 w-4/5 rounded bg-[#2d2d30]" />
-                    <div className="h-3 w-3/5 rounded bg-[#2d2d30]" />
+                <div className="workspace-card">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#569cd6] animate-pulse" />
+                    <span className="text-xs text-[#8b949e]">{streaming ? "Streaming…" : "Generating…"}</span>
                   </div>
+                  {streamingTokens ? (
+                    <pre className="text-xs text-[#6a9955] font-mono whitespace-pre-wrap leading-relaxed max-h-64 overflow-auto">
+                      {streamingTokens}
+                    </pre>
+                  ) : (
+                    <div className="space-y-2 animate-pulse">
+                      <div className="h-3 rounded bg-[#2d2d30]" />
+                      <div className="h-3 w-4/5 rounded bg-[#2d2d30]" />
+                      <div className="h-3 w-3/5 rounded bg-[#2d2d30]" />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -621,6 +632,13 @@ export default function App() {
                 >
                   Review
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectorView("execute")}
+                  className={`editor-tab ${inspectorView === "execute" ? "active" : ""}`}
+                >
+                  Execute
+                </button>
               </div>
 
               <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
@@ -705,6 +723,12 @@ export default function App() {
                     {inspectorView === "review" && (
                       <div className="workspace-card">
                         <ReviewTab initialSql={workspace.sql} dialect={workspace.dialect} />
+                      </div>
+                    )}
+
+                    {inspectorView === "execute" && (
+                      <div className="workspace-card">
+                        <ExecuteTab sql={workspace.sql} />
                       </div>
                     )}
                   </>

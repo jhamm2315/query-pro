@@ -14,6 +14,7 @@ class GenerateRequest(BaseModel):
     dialect: DialectType = Field(default="postgresql")
     thread_id: Optional[str] = None
     include_optimized: bool = Field(default=False, description="Also return a rewritten/optimized variant")
+    schema_context: Optional[str] = Field(default=None, description="DDL or CSV headers pasted by the user for schema context")
 
 
 class ValidationWarning(BaseModel):

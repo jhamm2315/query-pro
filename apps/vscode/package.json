@@ -1,0 +1,58 @@
+{
+  "name": "query-pro",
+  "displayName": "Query Pro",
+  "description": "Local-first SQL copilot — generate, review, and execute SQL from inside VS Code.",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Data Science"],
+  "keywords": ["sql", "ai", "copilot", "duckdb", "ollama"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "queryPro.open",
+        "title": "Query Pro: Open workspace"
+      },
+      {
+        "command": "queryPro.generateFromSelection",
+        "title": "Query Pro: Generate SQL from selection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "queryPro.generateFromSelection",
+          "when": "editorHasSelection",
+          "group": "QueryPro"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Query Pro",
+      "properties": {
+        "queryPro.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of the Query Pro backend API."
+        },
+        "queryPro.defaultDialect": {
+          "type": "string",
+          "default": "postgresql",
+          "enum": ["postgresql", "tsql", "mysql", "sqlite"],
+          "description": "Default SQL dialect for generation."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

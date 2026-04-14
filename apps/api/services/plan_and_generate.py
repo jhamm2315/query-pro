@@ -72,18 +72,61 @@ def _extract_plan_json(text: str) -> dict:
     return {}
 
 
-async def plan_and_generate(
+def _build_prompt(
     user_prompt: str,
-    dialect: str = "postgresql",
-) -> tuple[PlannerOutput, str]:
-    """Return (plan, sql) from a single LLM call."""
+    dialect: str,
+    history: Optional[list] = None,
+    schema_context: Optional[str] = None,
+) -> tuple[str, str]:
+    """Return (cleaned_prompt, full_prompt)."""
     cleaned = clean_prompt(user_prompt)
     template = _load_template()
+
+    history_block = ""
+    if history:
+        lines = []
+        for h in history[-4:]:  # last 4 turns for context
+            lines.append(f"Previous question: {h.get('prompt', '')}")
+            lines.append(f"Previous SQL: {h.get('sql', '')}")
+        history_block = "\n".join(lines)
+
+    schema_block = schema_context.strip() if schema_context else ""
+
     prompt = (
         template
         .replace("{{DIALECT}}", dialect)
         .replace("{{CLEANED_PROMPT}}", cleaned)
+        .replace("{{HISTORY}}", history_block)
+        .replace("{{SCHEMA}}", schema_block)
     )
+    return cleaned, prompt
+
+
+def _build_plan(raw_text: str, user_prompt: str, cleaned: str, dialect: str) -> PlannerOutput:
+    raw_plan = _extract_plan_json(raw_text)
+    raw_plan.setdefault("user_prompt", user_prompt)
+    raw_plan.setdefault("cleaned_prompt", cleaned)
+    raw_plan.setdefault("dialect", dialect)
+    try:
+        return PlannerOutput(**raw_plan)
+    except Exception as exc:
+        logger.warning("PlannerOutput validation failed: %s", exc)
+        return PlannerOutput(
+            user_prompt=user_prompt,
+            cleaned_prompt=cleaned,
+            dialect=dialect,
+            confidence_rationale="Plan parsing failed — check model output.",
+        )
+
+
+async def plan_and_generate(
+    user_prompt: str,
+    dialect: str = "postgresql",
+    history: Optional[list] = None,
+    schema_context: Optional[str] = None,
+) -> tuple[PlannerOutput, str]:
+    """Return (plan, sql) from a single LLM call."""
+    cleaned, prompt = _build_prompt(user_prompt, dialect, history, schema_context)
 
     try:
         raw_text = await ollama.generate(prompt, temperature=0.0)
@@ -91,21 +134,42 @@ async def plan_and_generate(
         logger.warning("plan_and_generate LLM call failed: %s", exc)
         raw_text = ""
 
-    raw_plan = _extract_plan_json(raw_text)
-    raw_plan.setdefault("user_prompt", user_prompt)
-    raw_plan.setdefault("cleaned_prompt", cleaned)
-    raw_plan.setdefault("dialect", dialect)
-
-    try:
-        plan = PlannerOutput(**raw_plan)
-    except Exception as exc:
-        logger.warning("PlannerOutput validation failed: %s", exc)
-        plan = PlannerOutput(
-            user_prompt=user_prompt,
-            cleaned_prompt=cleaned,
-            dialect=dialect,
-            confidence_rationale="Plan parsing failed — check model output.",
-        )
-
+    plan = _build_plan(raw_text, user_prompt, cleaned, dialect)
     sql = _extract_sql(raw_text) if raw_text else _SQL_PLACEHOLDER
     return plan, sql
+
+
+async def stream_plan_and_generate(
+    user_prompt: str,
+    dialect: str = "postgresql",
+    history: Optional[list] = None,
+    schema_context: Optional[str] = None,
+):
+    """Async generator yielding SSE events for the plan+SQL pipeline.
+
+    Events:
+      {type: "token", text: "..."}  — raw LLM tokens as they arrive
+      {type: "done", sql: "...", plan: {...}}  — final structured result
+      {type: "error", message: "..."}  — on failure
+    """
+    import json as _json
+
+    def sse(data: dict) -> str:
+        return f"data: {_json.dumps(data)}\n\n"
+
+    cleaned, prompt = _build_prompt(user_prompt, dialect, history, schema_context)
+    raw_tokens: list[str] = []
+
+    try:
+        async for token in ollama.stream_generate(prompt, temperature=0.0):
+            raw_tokens.append(token)
+            yield sse({"type": "token", "text": token})
+    except Exception as exc:
+        logger.warning("stream_plan_and_generate failed: %s", exc)
+        yield sse({"type": "error", "message": str(exc)})
+        return
+
+    raw_text = "".join(raw_tokens)
+    plan = _build_plan(raw_text, user_prompt, cleaned, dialect)
+    sql = _extract_sql(raw_text) if raw_text else _SQL_PLACEHOLDER
+    yield sse({"type": "done", "sql": sql, "plan": plan.model_dump()})

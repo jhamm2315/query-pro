@@ -11,3 +11,5 @@ python-dotenv==1.0.1
 pytest==8.3.4
 pytest-asyncio==0.24.0
 httpx  # also used by TestClient
+duckdb>=1.0.0
+# optional: openai-whisper

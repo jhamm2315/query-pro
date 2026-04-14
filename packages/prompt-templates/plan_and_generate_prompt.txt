@@ -1,6 +1,8 @@
 You are an expert SQL architect. Given a business question, return a plan AND the SQL in one response.
 
 Dialect: {{DIALECT}}
+{{SCHEMA}}
+{{HISTORY}}
 Question: {{CLEANED_PROMPT}}
 
 Return exactly this format — no preamble, no extra text:

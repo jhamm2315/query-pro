@@ -45,9 +45,18 @@ class StubBackend:
 # Backend registry — extend here to add real engines
 # ---------------------------------------------------------------------------
 
+import os as _os
+
 BACKENDS: dict[str, TranscriptionBackend] = {
     "stub": StubBackend(),
 }
+
+# Auto-register Whisper if the package is installed
+from services import whisper_backend as _wb  # noqa: E402
+
+_whisper = _wb.try_load(_os.getenv("WHISPER_MODEL", "base"))
+if _whisper is not None:
+    BACKENDS["whisper"] = _whisper
 
 
 def _get_backend(name: str) -> TranscriptionBackend:

@@ -37,6 +37,40 @@ export interface GenerateRequest {
   dialect: Dialect;
   thread_id?: string;
   include_optimized?: boolean;
+  schema_context?: string;
+}
+
+export type StreamChunk =
+  | { type: "token"; text: string }
+  | { type: "done"; sql: string; plan: import("../types").PlannerOutput; validation: import("../types").ValidateResponse; thread_id: string; turn_id: string; short_explanation: string; dialect: Dialect }
+  | { type: "error"; message: string };
+
+/** Stream plan+SQL generation as SSE tokens, then resolve with the complete result. */
+export async function* streamGenerate(body: GenerateRequest): AsyncGenerator<StreamChunk> {
+  const res = await fetch("/api/sql/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok || !res.body) throw new Error(`Stream error: ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try { yield JSON.parse(line.slice(6)) as StreamChunk; } catch { /* skip */ }
+      }
+    }
+  }
 }
 
 export const sqlApi = {

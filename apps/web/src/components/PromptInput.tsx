@@ -2,9 +2,10 @@ import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from 
 import type { Dialect } from "../types";
 import { DialectSelector } from "./DialectSelector";
 import { MicButton } from "./MicButton";
+import { SchemaUpload } from "./SchemaUpload";
 
 interface Props {
-  onSubmit: (prompt: string, dialect: Dialect) => void;
+  onSubmit: (prompt: string, dialect: Dialect, schemaContext?: string) => void;
   loading: boolean;
   fillPrompt?: string;
   onFillPromptConsumed?: () => void;
@@ -13,6 +14,7 @@ interface Props {
 export function PromptInput({ onSubmit, loading, fillPrompt, onFillPromptConsumed }: Props) {
   const [prompt, setPrompt] = useState("");
   const [dialect, setDialect] = useState<Dialect>("postgresql");
+  const [schemaContext, setSchemaContext] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export function PromptInput({ onSubmit, loading, fillPrompt, onFillPromptConsume
     e?.preventDefault();
     const trimmed = prompt.trim();
     if (!trimmed || loading) return;
-    onSubmit(trimmed, dialect);
+    onSubmit(trimmed, dialect, schemaContext.trim() || undefined);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -45,7 +47,8 @@ export function PromptInput({ onSubmit, loading, fillPrompt, onFillPromptConsume
   const charCount = prompt.length;
 
   return (
-    <form onSubmit={handleSubmit} className="w-full">
+    <form onSubmit={handleSubmit} className="w-full space-y-2">
+      <SchemaUpload value={schemaContext} onChange={setSchemaContext} />
       <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-lg focus-within:border-brand-500 transition-colors">
         {/* Textarea */}
         <textarea
