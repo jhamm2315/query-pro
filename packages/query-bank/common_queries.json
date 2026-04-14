@@ -1,0 +1,234 @@
+{
+  "version": "1.0",
+  "categories": [
+    {
+      "id": "Finance",
+      "name": "Finance & Accounting",
+      "icon": "💰",
+      "queries": [
+        {
+          "id": "fin_001",
+          "name": "Monthly Revenue Trend",
+          "description": "Total revenue per month — spot growth, dips, seasonality",
+          "use_case": "CFO dashboard, monthly close, board reporting",
+          "tags": ["revenue", "time-series", "aggregate"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  DATE_TRUNC('month', invoice_date) AS month,\n  SUM(amount)                       AS total_revenue,\n  COUNT(*)                          AS invoice_count\nFROM invoices\nWHERE invoice_date >= CURRENT_DATE - INTERVAL '12 months'\nGROUP BY 1\nORDER BY 1;"
+        },
+        {
+          "id": "fin_002",
+          "name": "Accounts Receivable Aging",
+          "description": "Outstanding invoices bucketed by days overdue (0-30, 31-60, 61-90, 90+)",
+          "use_case": "Collections, cash-flow forecasting, credit risk",
+          "tags": ["AR", "aging", "buckets"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  customer_id,\n  SUM(CASE WHEN days_overdue BETWEEN 0  AND 30 THEN amount ELSE 0 END) AS current_0_30,\n  SUM(CASE WHEN days_overdue BETWEEN 31 AND 60 THEN amount ELSE 0 END) AS past_due_31_60,\n  SUM(CASE WHEN days_overdue BETWEEN 61 AND 90 THEN amount ELSE 0 END) AS past_due_61_90,\n  SUM(CASE WHEN days_overdue > 90              THEN amount ELSE 0 END) AS past_due_90_plus\nFROM (\n  SELECT\n    customer_id,\n    amount,\n    GREATEST(0, CURRENT_DATE - due_date) AS days_overdue\n  FROM invoices\n  WHERE paid_at IS NULL\n) aged\nGROUP BY customer_id\nORDER BY (past_due_61_90 + past_due_90_plus) DESC;"
+        },
+        {
+          "id": "fin_003",
+          "name": "Month-over-Month Revenue Change",
+          "description": "Revenue vs prior month with absolute and percentage change",
+          "use_case": "Executive summary, finance review meetings",
+          "tags": ["MoM", "lag", "window-function"],
+          "dialect": "postgresql",
+          "sql": "WITH monthly AS (\n  SELECT\n    DATE_TRUNC('month', invoice_date) AS month,\n    SUM(amount)                       AS revenue\n  FROM invoices\n  GROUP BY 1\n)\nSELECT\n  month,\n  revenue,\n  LAG(revenue) OVER (ORDER BY month)                                         AS prev_revenue,\n  revenue - LAG(revenue) OVER (ORDER BY month)                               AS change,\n  ROUND(100.0 * (revenue - LAG(revenue) OVER (ORDER BY month))\n        / NULLIF(LAG(revenue) OVER (ORDER BY month), 0), 2)                  AS pct_change\nFROM monthly\nORDER BY month;"
+        },
+        {
+          "id": "fin_004",
+          "name": "Top Vendors by Spend (Last 90 Days)",
+          "description": "Rank vendors by total purchase spend over a rolling 90-day window",
+          "use_case": "Procurement review, vendor negotiations, AP analysis",
+          "tags": ["vendor", "spend", "ranking"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  vendor_id,\n  vendor_name,\n  SUM(amount)  AS total_spend,\n  COUNT(*)     AS invoice_count,\n  ROUND(100.0 * SUM(amount) / SUM(SUM(amount)) OVER (), 2) AS pct_of_total\nFROM purchase_invoices\nWHERE invoice_date >= CURRENT_DATE - INTERVAL '90 days'\nGROUP BY vendor_id, vendor_name\nORDER BY total_spend DESC\nLIMIT 20;"
+        }
+      ]
+    },
+    {
+      "id": "Sales",
+      "name": "Sales & CRM",
+      "icon": "📈",
+      "queries": [
+        {
+          "id": "sal_001",
+          "name": "Sales Pipeline by Stage",
+          "description": "Opportunity count and total value at each pipeline stage",
+          "use_case": "Weekly pipeline review, forecasting, rep coaching",
+          "tags": ["pipeline", "CRM", "funnel"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  stage,\n  COUNT(*)          AS opportunities,\n  SUM(deal_value)   AS total_value,\n  AVG(deal_value)   AS avg_deal_size\nFROM opportunities\nWHERE is_closed = FALSE\nGROUP BY stage\nORDER BY CASE stage\n  WHEN 'Prospecting'   THEN 1\n  WHEN 'Qualification' THEN 2\n  WHEN 'Proposal'      THEN 3\n  WHEN 'Negotiation'   THEN 4\n  WHEN 'Closed Won'    THEN 5\n  ELSE 99\nEND;"
+        },
+        {
+          "id": "sal_002",
+          "name": "Rep Quota Attainment",
+          "description": "Each sales rep's closed revenue vs quota for the current quarter",
+          "use_case": "Sales manager 1:1s, comp calculations, QBRs",
+          "tags": ["quota", "attainment", "rep performance"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  r.rep_name,\n  q.quota_amount,\n  COALESCE(SUM(o.deal_value), 0)                                           AS closed_revenue,\n  ROUND(100.0 * COALESCE(SUM(o.deal_value), 0) / NULLIF(q.quota_amount, 0), 1) AS attainment_pct\nFROM reps r\nJOIN quotas q  ON q.rep_id = r.rep_id\n             AND q.quarter = DATE_TRUNC('quarter', CURRENT_DATE)\nLEFT JOIN opportunities o ON o.owner_rep_id = r.rep_id\n                         AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE)\n                         AND o.stage = 'Closed Won'\nGROUP BY r.rep_name, q.quota_amount\nORDER BY attainment_pct DESC;"
+        },
+        {
+          "id": "sal_003",
+          "name": "Customer Lifetime Value (Simple)",
+          "description": "Total revenue per customer with first and most recent order dates",
+          "use_case": "Customer segmentation, retention scoring, upsell targeting",
+          "tags": ["LTV", "customer", "retention"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  customer_id,\n  MIN(order_date)   AS first_order,\n  MAX(order_date)   AS last_order,\n  COUNT(*)          AS order_count,\n  SUM(order_value)  AS lifetime_value\nFROM orders\nGROUP BY customer_id\nORDER BY lifetime_value DESC;"
+        }
+      ]
+    },
+    {
+      "id": "Ecommerce",
+      "name": "Ecommerce",
+      "icon": "🛒",
+      "queries": [
+        {
+          "id": "eco_001",
+          "name": "Daily Orders & GMV",
+          "description": "Orders placed and gross merchandise value per day",
+          "use_case": "Ops dashboard, flash reporting, anomaly detection",
+          "tags": ["GMV", "orders", "daily"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  order_date::date        AS day,\n  COUNT(*)                AS orders,\n  SUM(order_value)        AS gmv,\n  AVG(order_value)        AS aov\nFROM orders\nWHERE order_date >= CURRENT_DATE - 30\nGROUP BY 1\nORDER BY 1;"
+        },
+        {
+          "id": "eco_002",
+          "name": "Product Return Rate",
+          "description": "Return rate by SKU — units returned / units sold",
+          "use_case": "Merchandising review, quality control, supplier accountability",
+          "tags": ["returns", "SKU", "quality"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  p.sku,\n  p.product_name,\n  SUM(o.quantity)                                            AS units_sold,\n  COALESCE(SUM(r.quantity), 0)                               AS units_returned,\n  ROUND(100.0 * COALESCE(SUM(r.quantity), 0)\n        / NULLIF(SUM(o.quantity), 0), 2)                    AS return_rate_pct\nFROM order_items o\nJOIN products p   ON p.product_id = o.product_id\nLEFT JOIN returns r ON r.order_item_id = o.order_item_id\nGROUP BY p.sku, p.product_name\nHAVING SUM(o.quantity) > 10\nORDER BY return_rate_pct DESC;"
+        },
+        {
+          "id": "eco_003",
+          "name": "Cart Abandonment Rate",
+          "description": "Percentage of carts that were created but never converted to an order",
+          "use_case": "Conversion optimisation, email retargeting, UX research",
+          "tags": ["cart", "abandonment", "conversion"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  COUNT(DISTINCT c.session_id)                            AS carts_created,\n  COUNT(DISTINCT o.session_id)                            AS carts_converted,\n  COUNT(DISTINCT c.session_id)\n    - COUNT(DISTINCT o.session_id)                        AS carts_abandoned,\n  ROUND(100.0 * (COUNT(DISTINCT c.session_id)\n    - COUNT(DISTINCT o.session_id))\n    / NULLIF(COUNT(DISTINCT c.session_id), 0), 2)         AS abandonment_rate_pct\nFROM carts c\nLEFT JOIN orders o ON o.session_id = c.session_id\nWHERE c.created_at >= CURRENT_DATE - 30;"
+        }
+      ]
+    },
+    {
+      "id": "HR",
+      "name": "HR & People",
+      "icon": "👥",
+      "queries": [
+        {
+          "id": "hr_001",
+          "name": "Headcount by Department",
+          "description": "Active employee count and average tenure per department",
+          "use_case": "Org planning, workforce reporting, budget allocation",
+          "tags": ["headcount", "department", "tenure"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  department,\n  COUNT(*)                                                         AS headcount,\n  ROUND(AVG(EXTRACT(YEAR FROM AGE(CURRENT_DATE, hire_date))), 1)    AS avg_tenure_years\nFROM employees\nWHERE termination_date IS NULL\nGROUP BY department\nORDER BY headcount DESC;"
+        },
+        {
+          "id": "hr_002",
+          "name": "Attrition Rate (Rolling 12 Months)",
+          "description": "Voluntary and involuntary attrition rate over the last 12 months",
+          "use_case": "CHRO reporting, retention strategy, exit interview analysis",
+          "tags": ["attrition", "turnover", "retention"],
+          "dialect": "postgresql",
+          "sql": "WITH avg_headcount AS (\n  SELECT COUNT(*) AS avg_hc\n  FROM employees\n  WHERE hire_date <= CURRENT_DATE - INTERVAL '12 months'\n     OR termination_date IS NULL\n)\nSELECT\n  COUNT(CASE WHEN reason = 'Voluntary'   THEN 1 END) AS voluntary_exits,\n  COUNT(CASE WHEN reason = 'Involuntary' THEN 1 END) AS involuntary_exits,\n  COUNT(*)                                           AS total_exits,\n  ROUND(100.0 * COUNT(*) / NULLIF(ah.avg_hc, 0), 2) AS attrition_rate_pct\nFROM employees e\nCROSS JOIN avg_headcount ah\nWHERE e.termination_date BETWEEN CURRENT_DATE - INTERVAL '12 months' AND CURRENT_DATE;"
+        }
+      ]
+    },
+    {
+      "id": "KPIs",
+      "name": "KPIs & Dashboards",
+      "icon": "📊",
+      "queries": [
+        {
+          "id": "kpi_001",
+          "name": "7 / 30 / 90-Day Rolling Revenue",
+          "description": "Rolling revenue windows for short, medium, and long-term trend comparison",
+          "use_case": "CEO/CFO dashboard, investor updates, weekly business review",
+          "tags": ["rolling", "KPI", "trend"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  CURRENT_DATE                                                 AS as_of,\n  SUM(CASE WHEN order_date >= CURRENT_DATE -  7 THEN revenue END) AS rev_7d,\n  SUM(CASE WHEN order_date >= CURRENT_DATE - 30 THEN revenue END) AS rev_30d,\n  SUM(CASE WHEN order_date >= CURRENT_DATE - 90 THEN revenue END) AS rev_90d\nFROM daily_revenue;"
+        },
+        {
+          "id": "kpi_002",
+          "name": "Year-over-Year Growth by Business Unit",
+          "description": "Revenue this year vs last year per BU with YoY growth percentage",
+          "use_case": "Annual planning, board deck, segment performance review",
+          "tags": ["YoY", "growth", "business-unit"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  business_unit,\n  SUM(CASE WHEN EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)     THEN revenue END) AS this_year,\n  SUM(CASE WHEN EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) - 1 THEN revenue END) AS last_year,\n  ROUND(100.0 *\n    (SUM(CASE WHEN EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)     THEN revenue END)\n   - SUM(CASE WHEN EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) - 1 THEN revenue END))\n  / NULLIF(SUM(CASE WHEN EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) - 1 THEN revenue END), 0)\n  , 2) AS yoy_growth_pct\nFROM orders\nGROUP BY business_unit\nORDER BY this_year DESC;"
+        },
+        {
+          "id": "kpi_003",
+          "name": "NPS Score Distribution",
+          "description": "Promoters, Passives, Detractors, and Net Promoter Score from survey responses",
+          "use_case": "Customer success, product review, executive scorecard",
+          "tags": ["NPS", "survey", "customer-experience"],
+          "dialect": "postgresql",
+          "sql": "WITH scored AS (\n  SELECT\n    CASE\n      WHEN score >= 9 THEN 'Promoter'\n      WHEN score >= 7 THEN 'Passive'\n      ELSE 'Detractor'\n    END AS category\n  FROM nps_responses\n  WHERE survey_date >= CURRENT_DATE - 90\n)\nSELECT\n  COUNT(*)                                                           AS total_responses,\n  SUM(CASE WHEN category = 'Promoter'  THEN 1 ELSE 0 END)          AS promoters,\n  SUM(CASE WHEN category = 'Passive'   THEN 1 ELSE 0 END)          AS passives,\n  SUM(CASE WHEN category = 'Detractor' THEN 1 ELSE 0 END)          AS detractors,\n  ROUND(100.0 * SUM(CASE WHEN category = 'Promoter'  THEN 1 ELSE 0 END) / COUNT(*)\n      - 100.0 * SUM(CASE WHEN category = 'Detractor' THEN 1 ELSE 0 END) / COUNT(*), 1) AS nps\nFROM scored;"
+        }
+      ]
+    },
+    {
+      "id": "Operations",
+      "name": "Operations & Supply",
+      "icon": "⚙️",
+      "queries": [
+        {
+          "id": "ops_001",
+          "name": "Inventory Below Reorder Point",
+          "description": "SKUs where current stock is at or below the reorder threshold",
+          "use_case": "Daily ops alert, procurement trigger, stock-out prevention",
+          "tags": ["inventory", "reorder", "alert"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  p.sku,\n  p.product_name,\n  i.quantity_on_hand,\n  p.reorder_point,\n  p.reorder_quantity,\n  i.quantity_on_hand - p.reorder_point AS units_below_threshold\nFROM inventory i\nJOIN products p ON p.product_id = i.product_id\nWHERE i.quantity_on_hand <= p.reorder_point\nORDER BY units_below_threshold ASC;"
+        },
+        {
+          "id": "ops_002",
+          "name": "SLA Breach Rate by Ticket Category",
+          "description": "Support ticket SLA compliance — percentage breached per category",
+          "use_case": "Support ops review, vendor SLA tracking, escalation reporting",
+          "tags": ["SLA", "support", "compliance"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  category,\n  COUNT(*)                                                       AS total_tickets,\n  SUM(CASE WHEN resolved_at > sla_deadline THEN 1 ELSE 0 END)   AS breached,\n  ROUND(100.0 * SUM(CASE WHEN resolved_at > sla_deadline THEN 1 ELSE 0 END)\n        / NULLIF(COUNT(*), 0), 2)                                AS breach_rate_pct\nFROM support_tickets\nWHERE created_at >= CURRENT_DATE - 30\n  AND resolved_at IS NOT NULL\nGROUP BY category\nORDER BY breach_rate_pct DESC;"
+        }
+      ]
+    },
+    {
+      "id": "DataQuality",
+      "name": "Data Quality",
+      "icon": "🔍",
+      "queries": [
+        {
+          "id": "dq_001",
+          "name": "Duplicate Detection by Key Columns",
+          "description": "Find rows where a business key appears more than once",
+          "use_case": "Data pipeline audit, dedup before reporting, data engineering QA",
+          "tags": ["duplicates", "audit", "dedup"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  email,\n  COUNT(*) AS occurrences\nFROM customers\nGROUP BY email\nHAVING COUNT(*) > 1\nORDER BY occurrences DESC;"
+        },
+        {
+          "id": "dq_002",
+          "name": "Null / Missing Value Audit",
+          "description": "Count nulls in every column of a table to find data gaps",
+          "use_case": "Data quality scorecard, source system validation, ETL debugging",
+          "tags": ["nulls", "completeness", "audit"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  COUNT(*)                                   AS total_rows,\n  COUNT(*) - COUNT(customer_id)              AS missing_customer_id,\n  COUNT(*) - COUNT(email)                    AS missing_email,\n  COUNT(*) - COUNT(created_at)               AS missing_created_at,\n  COUNT(*) - COUNT(revenue)                  AS missing_revenue\nFROM customers;"
+        },
+        {
+          "id": "dq_003",
+          "name": "Orphaned Foreign Keys",
+          "description": "Rows in a child table whose FK references no parent row",
+          "use_case": "Referential integrity check, migration validation, ETL audit",
+          "tags": ["orphan", "FK", "integrity"],
+          "dialect": "postgresql",
+          "sql": "SELECT\n  oi.order_item_id,\n  oi.order_id\nFROM order_items oi\nLEFT JOIN orders o ON o.order_id = oi.order_id\nWHERE o.order_id IS NULL;"
+        }
+      ]
+    }
+  ]
+}

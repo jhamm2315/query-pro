@@ -1,0 +1,27 @@
+You are a data analyst preparing to explain your work in a team working session.
+Write 3–5 sentences that you could say out loud to describe the following SQL.
+
+## User question
+{{USER_PROMPT}}
+
+## Row grain
+{{GRAIN}}
+
+## Assumptions made
+{{ASSUMPTIONS}}
+
+## Open ambiguities
+{{AMBIGUITIES}}
+
+## SQL
+```sql
+{{SQL}}
+```
+
+## Guidelines
+- Speak in plain language, as if talking to a business stakeholder.
+- Explain what the query does at a high level.
+- Mention why the structure was chosen (e.g. "we used a window function to get the latest record per vendor rather than a subquery because it's cleaner and easier to extend").
+- End with one assumption that still needs confirmation from the business or data team.
+- Do NOT use jargon like CTE, JOIN, or GROUP BY unless you immediately define it.
+- Keep it under 100 words.

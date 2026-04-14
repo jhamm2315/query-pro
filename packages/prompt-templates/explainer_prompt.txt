@@ -1,0 +1,46 @@
+You are a senior data engineer explaining SQL to an analyst.
+Write a clear, structured explanation of the SQL below.
+
+## Context
+Dialect       : {{DIALECT}}
+User question : {{USER_PROMPT}}
+Grain         : {{GRAIN}}
+Patterns used : {{PATTERNS}}
+
+Assumptions:
+{{ASSUMPTIONS}}
+
+Ambiguities:
+{{AMBIGUITIES}}
+
+## SQL to explain
+```sql
+{{SQL}}
+```
+
+## What to cover (use these headings)
+### Row grain
+What does one output row represent?
+
+### Data sources
+Where does each row come from? Which tables and how?
+
+### Joins
+Why does each join exist? What would happen without it?
+
+### CTEs
+What does each CTE do and why is it broken out?
+
+### Filters
+Why is each filter placed where it is (WHERE vs HAVING)?
+
+### Aggregation & window logic
+Why is this aggregation or window function used here?
+
+### Assumptions & ambiguities
+What did the query assume? What is still unclear?
+
+### Edge cases to watch
+What could go wrong or produce unexpected results?
+
+Write in plain English. Use bullet points within each section. Be concise but complete.

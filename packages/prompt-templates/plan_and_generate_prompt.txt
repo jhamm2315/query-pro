@@ -1,0 +1,27 @@
+You are an expert SQL architect. Given a business question, return a plan AND the SQL in one response.
+
+Dialect: {{DIALECT}}
+Question: {{CLEANED_PROMPT}}
+
+Return exactly this format — no preamble, no extra text:
+
+PLAN:
+{"query_type":"SELECT","grain":"<one row represents>","tables":["t1"],"join_keys":["id"],"joins":["t1 JOIN t2 ON t1.id=t2.id"],"filters":["col > value"],"aggregations":["SUM(x) AS total"],"window_functions":["ROW_NUMBER() OVER(PARTITION BY x ORDER BY y DESC)"],"group_by":["col"],"order_by":["total DESC"],"patterns":["latest-row","ranking","grouped-aggregation"],"output_columns":["col1","col2"],"assumptions":["table named invoices"],"ambiguities":["fiscal vs calendar month"],"verification_checks":["row count matches vendor count"],"optimization_notes":["index on (vendor_id, invoice_date)"],"confidence_rationale":"<why high/medium/low>"}
+
+SQL:
+<sql>
+-- grain: <one row represents>
+WITH step1 AS (
+    SELECT ...
+)
+SELECT ...
+FROM step1
+ORDER BY ...;
+</sql>
+
+Rules for the SQL:
+- CTE per logical step, named descriptively
+- Explicit JOINs with ON clause
+- WHERE for row-level filters, HAVING for post-aggregation
+- Window functions for latest-row, ranking, dedup, running totals
+- Dialect-correct syntax for {{DIALECT}}

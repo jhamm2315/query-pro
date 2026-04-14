@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    font-family: "IBM Plex Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    background: #1e1e1e;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-[#1e1e1e] text-[#d4d4d4];
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  code, pre, .font-mono {
+    font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
+  }
+}
+
+@layer components {
+  .app-frame {
+    @apply flex h-screen overflow-hidden bg-[#1e1e1e];
+  }
+
+  .activity-rail {
+    @apply flex w-14 shrink-0 flex-col border-r border-[#2a2d2e] bg-[#181818] px-2 py-3;
+  }
+
+  .rail-btn {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl text-[#7d8590] transition-colors duration-150 hover:bg-[#252526] hover:text-[#d4d4d4];
+  }
+
+  .rail-btn.active {
+    @apply bg-[#252526] text-[#ffffff];
+    box-shadow: inset 2px 0 0 #007acc;
+  }
+
+  .explorer-panel {
+    @apply w-64 shrink-0 border-r border-[#2a2d2e] bg-[#181818];
+  }
+
+  .workspace-shell {
+    @apply flex min-w-0 flex-1 flex-col bg-[#1e1e1e];
+  }
+
+  .split-workspace {
+    @apply flex min-h-0 flex-1 flex-row bg-[#1e1e1e];
+  }
+
+  .split-pane {
+    @apply min-h-0;
+  }
+
+  .workspace-topbar {
+    @apply flex items-center justify-between gap-4 border-b border-[#2a2d2e] bg-[#181818] px-4 py-3;
+  }
+
+  .workspace-badges {
+    @apply flex flex-wrap items-center justify-end gap-2 text-xs;
+  }
+
+  .workspace-badge {
+    @apply rounded-full border border-[#2a2d2e] bg-[#252526] px-2.5 py-1 text-[#8b949e];
+  }
+
+  .workspace-badge-live {
+    @apply border-[#0e639c] bg-[#04395e] text-[#9cdcfe];
+  }
+
+  .editor-tab-strip {
+    @apply flex items-center gap-1 overflow-x-auto border-b border-[#2a2d2e] bg-[#181818] px-3 py-2;
+  }
+
+  .editor-tab {
+    @apply rounded-md px-3 py-1.5 text-sm text-[#8b949e] transition-colors duration-150 hover:bg-[#252526] hover:text-[#d4d4d4];
+  }
+
+  .editor-tab.active {
+    @apply bg-[#1e1e1e] text-[#ffffff];
+    box-shadow: inset 0 -2px 0 #007acc;
+  }
+
+  .workspace-card {
+    @apply rounded-2xl border border-[#2a2d2e] bg-[#252526] p-4;
+  }
+
+  .workspace-card-compact {
+    @apply p-3;
+  }
+
+  .panel-header {
+    @apply mb-4 flex items-start justify-between gap-3 border-b border-[#2a2d2e] pb-3;
+  }
+
+  .panel-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8b949e];
+  }
+
+  .panel-meta {
+    @apply mt-1 text-sm leading-relaxed text-[#c5c5c5];
+  }
+
+  .inspector-panel {
+    @apply flex w-[22rem] shrink-0 flex-col border-l border-[#2a2d2e] bg-[#181818];
+  }
+
+  .bottom-panel {
+    @apply flex h-[20rem] shrink-0 flex-col border-t border-[#2a2d2e] bg-[#181818];
+  }
+
+  .splitter-handle {
+    @apply relative h-full w-[10px] shrink-0 cursor-col-resize border-x border-[#2a2d2e] bg-[#181818] transition-colors;
+  }
+
+  .splitter-handle:hover,
+  .splitter-handle.active {
+    @apply bg-[#1f2a37];
+  }
+
+  .splitter-grip {
+    @apply absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#4b5563];
+  }
+
+  .status-bar {
+    @apply flex items-center gap-4 border-t border-[#0e639c] bg-[#007acc] px-4 py-1.5 text-[11px] font-medium text-white;
+  }
+
+  .tab-btn {
+    @apply rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150;
+  }
+
+  .tab-btn.active {
+    @apply bg-[#1e1e1e] text-white;
+    box-shadow: inset 0 -2px 0 #007acc;
+  }
+
+  .tab-btn:not(.active) {
+    @apply text-[#8b949e] hover:bg-[#252526] hover:text-[#d4d4d4];
+  }
+
+  .card {
+    @apply rounded-xl border border-[#2a2d2e] bg-[#252526] p-5;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .badge-high {
+    @apply border-green-700 bg-green-900/50 text-green-300;
+  }
+
+  .badge-medium {
+    @apply border-yellow-700 bg-yellow-900/50 text-yellow-300;
+  }
+
+  .badge-low {
+    @apply border-red-700 bg-red-900/50 text-red-300;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3e3e42;
+  border-radius: 999px;
+  border: 2px solid #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4e4e52;
+}
